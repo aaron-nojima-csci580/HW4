@@ -183,6 +183,23 @@ int GzNewRender(GzRender **render, GzDisplay	*display)
 		(*render)->camera.worldup[Y] = 1;
 		(*render)->camera.worldup[Z] = 0;
 
+		// set default shading values
+		(*render)->interp_mode = GZ_RGB_COLOR;
+		(*render)->numlights = 0;
+		GzColor ka = DEFAULT_AMBIENT;
+		GzColor kd = DEFAULT_DIFFUSE;
+		GzColor ks = DEFAULT_SPECULAR;
+		(*render)->Ka[RED] = ka[RED];
+		(*render)->Ka[GREEN] = ka[GREEN];
+		(*render)->Ka[BLUE] = ka[BLUE];
+		(*render)->Kd[RED] = kd[RED];
+		(*render)->Kd[GREEN] = kd[GREEN];
+		(*render)->Kd[BLUE] = kd[BLUE];
+		(*render)->Ks[RED] = ks[RED];
+		(*render)->Ks[GREEN] = ks[GREEN];
+		(*render)->Ks[BLUE] = ks[BLUE];
+		(*render)->spec = DEFAULT_SPEC;
+
 		return GZ_SUCCESS;
 	}
 	return GZ_FAILURE;
@@ -394,6 +411,37 @@ int GzPushMatrix(GzRender *render, GzMatrix	matrix)
 			}
 		}
 	}
+
+	// push new matrix for Xnorm
+	if (render->matlevel == 0 || render->matlevel == 1)
+	{
+		// Push Identity
+		for (int i = 0; i < 4; ++i)
+		{
+			for (int j = 0; j < 4; ++j)
+			{
+				render->Xnorm[render->matlevel][i][j] = i == j ? 1 : 0;
+			}
+		}
+	}
+	else
+	{
+		// Push Xnorm
+		GzMatrix normalMatrix;
+		calculateNormalMatrix(matrix, &normalMatrix);
+		for (int i = 0; i < 4; ++i)
+		{
+			for (int j = 0; j < 4; ++j)
+			{
+				render->Xnorm[render->matlevel][i][j] = 0;
+				for (int k = 0; k < 4; ++k)
+				{
+					render->Xnorm[render->matlevel][i][j] += render->Xnorm[render->matlevel - 1][i][k] * normalMatrix[k][j];
+				}
+			}
+		}
+	}
+
 	return GZ_SUCCESS;
 }
 
@@ -430,12 +478,14 @@ int GzPutAttribute(GzRender	*render, int numAttributes, GzToken	*nameList,
 	{
 		for (int i = 0; i < numAttributes; ++i)
 		{
+			GzColor *color, *acolor, *dcolor, *scolor;
+			GzLight *alight, *dlight;
 			switch (nameList[i])
 			{
 				case GZ_RGB_COLOR:
 					// LATER: Do I have to increment through tokens (ints) and use (sizeof) token type
 					// to increment the ponter through the value list
-					GzColor * color = (GzColor *)valueList[i];
+					color = (GzColor *)valueList[i];
 					// clamp color values
 					(*color)[RED] = fmaxf(0, fminf(4095, (*color)[RED]));
 					(*color)[GREEN] = fmaxf(0, fminf(4095, (*color)[GREEN]));
@@ -444,7 +494,67 @@ int GzPutAttribute(GzRender	*render, int numAttributes, GzToken	*nameList,
 					render->flatcolor[GREEN] = (*color)[GREEN];
 					render->flatcolor[BLUE] = (*color)[BLUE];
 					break;
-					// later set shaders, interpolaters, texture maps, and lights
+				case GZ_AMBIENT_COEFFICIENT:
+					acolor = (GzColor *)valueList[i];
+					// clamp color values
+					(*acolor)[RED] = fmaxf(0, fminf(4095, (*acolor)[RED]));
+					(*acolor)[GREEN] = fmaxf(0, fminf(4095, (*acolor)[GREEN]));
+					(*acolor)[BLUE] = fmaxf(0, fminf(4095, (*acolor)[BLUE]));
+					render->Ka[RED] = (*acolor)[RED];
+					render->Ka[GREEN] = (*acolor)[GREEN];
+					render->Ka[BLUE] = (*acolor)[BLUE];
+					break;
+				case GZ_DIFFUSE_COEFFICIENT:
+					dcolor = (GzColor *)valueList[i];
+					// clamp color values
+					(*dcolor)[RED] = fmaxf(0, fminf(4095, (*dcolor)[RED]));
+					(*dcolor)[GREEN] = fmaxf(0, fminf(4095, (*dcolor)[GREEN]));
+					(*dcolor)[BLUE] = fmaxf(0, fminf(4095, (*dcolor)[BLUE]));
+					render->Kd[RED] = (*dcolor)[RED];
+					render->Kd[GREEN] = (*dcolor)[GREEN];
+					render->Kd[BLUE] = (*dcolor)[BLUE];
+					break;
+				case GZ_SPECULAR_COEFFICIENT:
+					scolor = (GzColor *)valueList[i];
+					// clamp color values
+					(*scolor)[RED] = fmaxf(0, fminf(4095, (*scolor)[RED]));
+					(*scolor)[GREEN] = fmaxf(0, fminf(4095, (*scolor)[GREEN]));
+					(*scolor)[BLUE] = fmaxf(0, fminf(4095, (*scolor)[BLUE]));
+					render->Ks[RED] = (*scolor)[RED];
+					render->Ks[GREEN] = (*scolor)[GREEN];
+					render->Ks[BLUE] = (*scolor)[BLUE];
+					break;
+				case GZ_AMBIENT_LIGHT:
+					alight = (GzLight *)valueList[i];
+					// clamp color values
+					render->ambientlight.color[RED] = fmaxf(0, fminf(4095, alight->color[RED]));
+					render->ambientlight.color[GREEN] = fmaxf(0, fminf(4095, alight->color[GREEN]));;
+					render->ambientlight.color[BLUE] = fmaxf(0, fminf(4095, alight->color[BLUE]));
+					break;
+				case GZ_DIRECTIONAL_LIGHT:
+					if (render->numlights >= MAX_LIGHTS)
+					{
+						return GZ_FAILURE;
+					}
+					dlight = (GzLight *)valueList[i];
+					// clamp color values
+					render->lights[render->numlights].color[RED] = fmaxf(0, fminf(4095, dlight->color[RED]));
+					render->lights[render->numlights].color[GREEN] = fmaxf(0, fminf(4095, dlight->color[GREEN]));
+					render->lights[render->numlights].color[BLUE] = fmaxf(0, fminf(4095, dlight->color[BLUE]));
+
+					render->lights[render->numlights].direction[X] = dlight->direction[X];
+					render->lights[render->numlights].direction[Y] = dlight->direction[Y];
+					render->lights[render->numlights].direction[Z] = dlight->direction[Z];
+					render->numlights++;
+					break;
+				case GZ_DISTRIBUTION_COEFFICIENT:
+					render->spec = *((float *)valueList[i]);
+					break;
+				case GZ_INTERPOLATE:
+					render->interp_mode = *((int *)valueList[i]);
+					break;
+
+				// later set texture maps
 			}
 		}
 		return GZ_SUCCESS;
@@ -828,6 +938,45 @@ void getPlane(GzCoord * triangleVertices, float * A, float * B, float * C, float
 float interpolateZ(float A, float B, float C, float D, float x, float y)
 {
 	return -1 * (A*x + B*y + D) / C;
+}
+
+void calculateNormalMatrix(GzMatrix matrix, GzMatrix * normalMatrix)
+{
+	float a = matrix[0][0];
+	float b = matrix[0][1];
+	float c = matrix[0][2];
+	float d = matrix[1][0];
+	float e = matrix[1][1];
+	float f = matrix[1][2];
+	float g = matrix[2][0];
+	float h = matrix[2][1];
+	float i = matrix[2][2];
+	
+	float determinant = a*e*i + b*f*g + c*d*h - c*e*g - b*d*i - a*f*h;
+	float invDet = 1.0f / determinant;
+	
+	for (int row = 0; row < 4; ++row)
+	{
+		for (int col = 0; col < 4; ++col)
+		{
+			if (row == 3 && col == 3)
+			{
+				(*normalMatrix)[row][col] = 1;
+			}
+			else if (row == 3 || col == 3)
+			{
+				(*normalMatrix)[row][col] = 0;
+			}
+			else
+			{
+				(*normalMatrix)[row][col] = invDet * (
+					matrix[(row + 1) % 3][(col + 1) % 3] * matrix[(row + 2) % 3][(col + 2) % 3] -
+					matrix[(row + 2) % 3][(col + 1) % 3] * matrix[(row + 1) % 3][(col + 2) % 3]
+				);
+			}
+		}
+	}
+	
 }
 
 short	ctoi(float color)		/* convert float color to GzIntensity short */
