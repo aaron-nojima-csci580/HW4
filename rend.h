@@ -69,3 +69,7 @@ int GzScaleMat(GzCoord scale, GzMatrix mat);
 
 // HW4
 void calculateNormalMatrix(GzMatrix matrix, GzMatrix * normalMatrix);
+void getColor(GzRender * render, GzCoord normal, GzColor * color);
+void scalarProduct(GzCoord * v, float scalar);
+void normalize(GzCoord * v);
+float dotProduct(GzCoord u, GzCoord v);

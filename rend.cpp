@@ -849,7 +849,26 @@ int GzPutTriangle(GzRender	*render, int numParts, GzToken *nameList, GzPointer	*
 						if (interpZ < z || z == 0)
 						{
 							// closer - update pixel
-							GzPutDisplay(render->display, i, j, ctoi(render->flatcolor[RED]), ctoi(render->flatcolor[GREEN]), ctoi(render->flatcolor[BLUE]), a, interpZ);
+							// TODO: Handle different shading models
+							if (render->interp_mode == GZ_FLAT)
+							{
+								// Just use flatcolor
+								// TODO: do we still need to calculate face normal?
+								GzPutDisplay(render->display, i, j, ctoi(render->flatcolor[RED]), ctoi(render->flatcolor[GREEN]), ctoi(render->flatcolor[BLUE]), a, interpZ);
+							}
+							else
+							{
+								if (render->interp_mode == GZ_COLOR)
+								{
+									// TODO: interpolate color based on vertex colors
+								}
+									
+								if (render->interp_mode == GZ_NORMALS)
+								{
+									// TODO: internpolate normal and calculate color
+								}
+							}
+							
 						}
 					}
 				}
@@ -918,7 +937,7 @@ int sign(float value)
 	return fabsf(value) / value;
 }
 
-void getPlane(GzCoord * triangleVertices, float * A, float * B, float * C, float * D)
+void getPlane(GzCoord * triangleVertices, float * NA, float * NB, float * NC, float * D)
 {
 	float X1 = triangleVertices[1][X] - triangleVertices[0][X];
 	float Y1 = triangleVertices[1][Y] - triangleVertices[0][Y];
@@ -926,13 +945,26 @@ void getPlane(GzCoord * triangleVertices, float * A, float * B, float * C, float
 	float X2 = triangleVertices[2][X] - triangleVertices[0][X];
 	float Y2 = triangleVertices[2][Y] - triangleVertices[0][Y];
 	float Z2 = triangleVertices[2][Z] - triangleVertices[0][Z];
-	*A = Y1*Z2 - Z1*Y2;
-	*B = Z1*X2 - X1*Z2;
-	*C = X1*Y2 - Y1*X2;
+	float A = Y1*Z2 - Z1*Y2;
+	float B = Z1*X2 - X1*Z2;
+	float C = X1*Y2 - Y1*X2;
+	float mag = A*A + B*B + C*C;
+	if (mag == 0)
+	{
+		*NA = 0;
+		*NB = 0;
+		*NC = 0;
+	}
+	else
+	{
+		*NA = A / mag;
+		*NB = B / mag;
+		*NC = C / mag;
+	}
 	float x = triangleVertices[0][X];
 	float y = triangleVertices[0][Y];
 	float z = triangleVertices[0][Z];
-	*D = -1 * ((*A)*x + (*B)*y + (*C)*z);
+	*D = -1 * ((*NA)*x + (*NB)*y + (*NC)*z);
 }
 
 float interpolateZ(float A, float B, float C, float D, float x, float y)
@@ -977,6 +1009,67 @@ void calculateNormalMatrix(GzMatrix matrix, GzMatrix * normalMatrix)
 		}
 	}
 	
+}
+
+void getColor(GzRender * render, GzCoord N, GzColor * color)
+{
+	GzColor Ka, Kd, Ks;
+	Ka[RED] = render->Ka[RED];
+	Ka[GREEN] = render->Ka[GREEN];
+	Ka[BLUE] = render->Ka[BLUE];
+	Kd[RED] = render->Kd[RED];
+	Kd[GREEN] = render->Kd[GREEN];
+	Kd[BLUE] = render->Kd[BLUE];
+	Ks[RED] = render->Ks[RED];
+	Ks[GREEN] = render->Ks[GREEN];
+	Ks[BLUE] = render->Ks[BLUE];
+	float spec = render->spec;
+
+	GzLight * directionalLights = render->lights;
+	GzLight ambientLight = render->ambientlight;
+	GzColor Ia;
+	Ia[RED] = ambientLight.color[RED];
+	Ia[GREEN] = ambientLight.color[GREEN];
+	Ia[BLUE] = ambientLight.color[BLUE];
+
+	// TODO: calculate E
+	GzCoord E;
+	render->camera.position;
+	// E = render->camera.position - position;
+
+	for (int i = 0; i < render->numlights; ++i)
+	{
+		// TODO: calculate R, L
+		// TODO: calculate Ie
+	}
+
+	// C = (Ks * sum[over all lights] {Ie * (R . E)^spec} ) +(Kd sum[over all lights] {Ie (N . L)}) + (Ka * Ia)
+
+}
+
+void scalarProduct(GzCoord * v, float scalar)
+{
+	(*v)[X] *= scalar;
+	(*v)[Y] *= scalar;
+	(*v)[Z] *= scalar;
+}
+
+void normalize(GzCoord * v)
+{
+	float length = sqrt((*v)[X] * (*v)[X] + (*v)[Y] * (*v)[Y] + (*v)[Z] * (*v)[Z]);
+	scalarProduct(v, 1.0f / length);
+}
+
+float dotProduct(GzCoord u, GzCoord v)
+{
+	return u[X] * v[X] + u[Y] * v[Y] + u[Z] * v[Z];
+}
+
+void colorMultiply(GzColor u, GzColor v, GzColor * out)
+{
+	(*out)[RED] = u[RED] * v[RED];
+	(*out)[GREEN] = u[GREEN] * v[GREEN];
+	(*out)[BLUE] = u[BLUE] * v[BLUE];
 }
 
 short	ctoi(float color)		/* convert float color to GzIntensity short */
