@@ -70,11 +70,9 @@ int GzScaleMat(GzCoord scale, GzMatrix mat);
 // HW4
 void calculateNormalMatrix(GzMatrix matrix, GzMatrix * normalMatrix);
 void getColor(GzRender * render, GzCoord * N, GzColor * color);
-int getcolor(GzRender *render, GzCoord * normal, GzColor * color);
 void vectorAdd(GzCoord * u, GzCoord * v, GzCoord * out);
 void vectorIncrease(GzCoord * u, GzCoord * v);
 void vectorSubtract(GzCoord * u, GzCoord * v, GzCoord * out);
-void vectorProduct(GzCoord * u, GzCoord * v, GzCoord * out);
 void scaleVector(GzCoord * v, float scalar);
 void scalarProduct(GzCoord * v, float scalar, GzCoord * out);
 void normalize(GzCoord * v);

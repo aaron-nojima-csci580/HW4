@@ -353,7 +353,6 @@ int GzPutCamera(GzRender *render, GzCamera *camera)
 	float dInv = tan((camera->FOV / 2) * (PI / 180));
 	render->camera.Xpi[2][2] = dInv;
 	render->camera.Xpi[3][2] = dInv;
-	// TODO: what about camera.Xiw?
 	return GZ_SUCCESS;
 }
 
@@ -841,8 +840,6 @@ int GzPutTriangle(GzRender	*render, int numParts, GzToken *nameList, GzPointer	*
 			C[j] = dX * Vertices[j][Y] - dY * Vertices[j][X];
 		}
 
-		// TODO: anything for normals?
-
 		// Compute bbox
 		int xmin, xmax, ymin, ymax;
 		xmin = floor(fminf(fminf(triangleVertices[0][X], triangleVertices[1][X]), triangleVertices[2][X]));
@@ -866,10 +863,12 @@ int GzPutTriangle(GzRender	*render, int numParts, GzToken *nameList, GzPointer	*
 
 		// Calculate Flat Surface color
 		GzColor flatColor;
-		GzCoord faceNormal = { NA, NB, NC };
-		normalize(&faceNormal);
-		getColor(render, &faceNormal, &flatColor);
-		//getcolor(render, &faceNormal, &flatColor);
+		if (render->interp_mode == GZ_FLAT)
+		{
+			GzCoord faceNormal = { NA, NB, NC };
+			normalize(&faceNormal);
+			getColor(render, &faceNormal, &flatColor);
+		}
 
 		// Find color for each vertex
 		float redA, redB, redC, redD;
@@ -887,9 +886,9 @@ int GzPutTriangle(GzRender	*render, int numParts, GzToken *nameList, GzPointer	*
 			float blueValues[3] = { triangleVertexColors[0][BLUE], triangleVertexColors[1][BLUE], triangleVertexColors[2][BLUE] };
 
 
-			getTriangleInterpolator(triangleVertices, redValues, &redA, &redB, &redC, &redD);
-			getTriangleInterpolator(triangleVertices, greenValues, &greenA, &greenB, &greenC, &greenD);
-			getTriangleInterpolator(triangleVertices, blueValues, &blueA, &blueB, &blueC, &blueD);
+			getTriangleInterpolator(Vertices, redValues, &redA, &redB, &redC, &redD);
+			getTriangleInterpolator(Vertices, greenValues, &greenA, &greenB, &greenC, &greenD);
+			getTriangleInterpolator(Vertices, blueValues, &blueA, &blueB, &blueC, &blueD);
 		}
 
 		// For all pixels in bbox
@@ -986,7 +985,6 @@ int GzPutTriangle(GzRender	*render, int numParts, GzToken *nameList, GzPointer	*
 						float a = pixelColor[RED];
 					}
 
-					//GzPutDisplay(render->display, i, j, ctoi(render->flatcolor[RED]), ctoi(render->flatcolor[GREEN]), ctoi(render->flatcolor[BLUE]), a, interpZ);
 					GzPutDisplay(render->display, i, j, ctoi(pixelColor[RED]), ctoi(pixelColor[GREEN]), ctoi(pixelColor[BLUE]), a, interpZ);
 				}
 			}
@@ -1119,49 +1117,42 @@ void calculateNormalMatrix(GzMatrix matrix, GzMatrix * normalMatrix)
 
 void getColor(GzRender * render, GzCoord * N, GzColor * color)
 {
-	// TODO: stil incorrect
 	GzColor Ka, Kd, Ks;
 	GzColor Is, Id, Ia;
 
-	(Ka)[RED] = render->Ka[RED];
-	(Ka)[GREEN] = render->Ka[GREEN];
-	(Ka)[BLUE] = render->Ka[BLUE];
-	(Kd)[RED] = render->Kd[RED];
-	(Kd)[GREEN] = render->Kd[GREEN];
-	(Kd)[BLUE] = render->Kd[BLUE];
-	(Ks)[RED] = render->Ks[RED];
-	(Ks)[GREEN] = render->Ks[GREEN];
-	(Ks)[BLUE] = render->Ks[BLUE];
+	Ka[RED] = render->Ka[RED];
+	Ka[GREEN] = render->Ka[GREEN];
+	Ka[BLUE] = render->Ka[BLUE];
+	Kd[RED] = render->Kd[RED];
+	Kd[GREEN] = render->Kd[GREEN];
+	Kd[BLUE] = render->Kd[BLUE];
+	Ks[RED] = render->Ks[RED];
+	Ks[GREEN] = render->Ks[GREEN];
+	Ks[BLUE] = render->Ks[BLUE];
 	float spec = render->spec;
 
 	GzLight * directionalLights = render->lights;
 	GzLight ambientLight = render->ambientlight;
 	
-	(Ia)[RED] = ambientLight.color[RED];
-	(Ia)[GREEN] = ambientLight.color[GREEN];
-	(Ia)[BLUE] = ambientLight.color[BLUE];
-	(Is)[RED] = 0;
-	(Is)[GREEN] = 0;
-	(Is)[BLUE] = 0;
-	(Id)[RED] = 0;
-	(Id)[GREEN] = 0;
-	(Id)[BLUE] = 0;
+	Ia[RED] = ambientLight.color[RED];
+	Ia[GREEN] = ambientLight.color[GREEN];
+	Ia[BLUE] = ambientLight.color[BLUE];
+	Is[RED] = 0;
+	Is[GREEN] = 0;
+	Is[BLUE] = 0;
+	Id[RED] = 0;
+	Id[GREEN] = 0;
+	Id[BLUE] = 0;
 
 	GzCoord E = { 0, 0, -1 };
 
 	for (int i = 0; i < render->numlights; ++i)
 	{
-		// Calculate L (in image space)
-		render->camera.Xiw;
+		// Get L
 		GzCoord L;
 		for (int j = 0; j < 3; ++j)
 		{
 			L[j] = render->lights[i].direction[j];
-			/*(L)[j] = 0;
-			for (int k = 0; k < 3; ++k)
-			{
-				(L)[j] += render->camera.Xiw[j][k] * render->lights[i].direction[k];
-			}*/
 		}
 		normalize(&L);
 
@@ -1188,9 +1179,9 @@ void getColor(GzRender * render, GzCoord * N, GzColor * color)
 		normalize(&R);
 		
 		// Clamp R.E in [0,1]
-		float RdotE = fmaxf(0, fminf(4095, dotProduct(&R, &E)));
+		float RdotE = fmaxf(0, fminf(1, dotProduct(&R, &E)));
 
-		// calculate Ie
+		// Get Ie
 		GzColor Ie;
 		(Ie)[RED] = render->lights[i].color[RED];
 		(Ie)[GREEN] = render->lights[i].color[GREEN];
@@ -1219,91 +1210,6 @@ void getColor(GzRender * render, GzCoord * N, GzColor * color)
 	(*color)[BLUE] = fmaxf(0, fminf(1, (*color)[BLUE]));
 }
 
-
-
-
-int getcolor(GzRender *render, GzCoord * normal, GzColor * color) {
-
-	GzCoord E, R;
-	E[0] = 0;
-	E[1] = 0;
-	E[2] = -1;
-	float NdotE, NdotL, RdotE;
-	GzColor Id, Is;
-	Id[RED] = 0;
-	Id[GREEN] = 0;
-	Id[BLUE] = 0;
-	Is[RED] = 0;
-	Is[GREEN] = 0;
-	Is[BLUE] = 0;
-	NdotE = ((*(normal)[0] * E[0]) + ((*normal)[1] * E[1]) + ((*normal)[2] * E[2]));
-
-	GzCoord newN = { 0, 0, 0 };
-
-	for (int i = 0; i < (render->numlights); i++) {
-		float ndotl = dotProduct(normal, &(render->lights[i].direction));
-		NdotL = (((*normal)[0] * (render->lights[i].direction[0])) + ((*normal)[1] * (render->lights[i].direction[1])) + ((*normal)[2] * (render->lights[i].direction[2])));
-		if (NdotL > 0 && NdotE > 0) {
-
-			R[0] = (2 * (NdotL)* (*normal)[0]) - (render->lights[i].direction[0]);
-			R[1] = (2 * (NdotL)* (*normal)[1]) - (render->lights[i].direction[1]);
-			R[2] = (2 * (NdotL)* (*normal)[2]) - (render->lights[i].direction[2]);
-
-		}
-
-		else if (NdotL < 0 && NdotE < 0) {
-
-			newN[0] = (-1 * (*normal)[0]);
-			newN[1] = (-1 * (*normal)[1]);
-			newN[2] = (-1 * (*normal)[2]);
-
-			NdotL = ((newN[0] * (render->lights[i].direction[0])) + (newN[1] * (render->lights[i].direction[1])) + (newN[2] * (render->lights[i].direction[2])));
-			R[0] = (2 * (NdotL)* newN[0]) - (render->lights[i].direction[0]);
-			R[1] = (2 * (NdotL)* newN[1]) - (render->lights[i].direction[1]);
-			R[2] = (2 * (NdotL)* newN[2]) - (render->lights[i].direction[2]);
-		}
-		else
-		{
-			continue;
-		}
-
-		float modR = sqrt((R[0] * R[0]) + (R[1] * R[1]) + (R[2] * R[2]));
-
-		R[0] = R[0] / modR;
-		R[1] = R[1] / modR;
-		R[2] = R[2] / modR;
-
-		RdotE = ((R[0] * E[0]) + (R[1] * E[1]) + (R[2] * E[2]));
-
-		if (RdotE < 0) {
-			RdotE = 0;
-		}
-		else if (RdotE > 1) {
-			RdotE = 1;
-		}
-
-		Id[RED] = Id[RED] + ((NdotL) * (render->lights[i].color[RED]));
-		Id[GREEN] = Id[GREEN] + ((NdotL)* (render->lights[i].color[GREEN]));
-		Id[BLUE] = Id[BLUE] + ((NdotL)* (render->lights[i].color[BLUE]));
-
-		Is[RED] = Is[RED] + ((pow(RdotE, render->spec)) * (render->lights[i].color[RED]));
-		Is[GREEN] = Is[GREEN] + ((pow(RdotE, render->spec)) * (render->lights[i].color[GREEN]));
-		Is[BLUE] = Is[BLUE] + ((pow(RdotE, render->spec)) * (render->lights[i].color[BLUE]));
-
-	} //for ends
-
-	  //color = specular + diffuse+ ambient;
-
-	(*color)[RED] = (render->Ks[RED] * Is[RED]) + (render->Kd[RED] * Id[RED]) + (render->Ka[RED] * render->ambientlight.color[RED]);
-	(*color)[GREEN] = (render->Ks[GREEN] * Is[GREEN]) + (render->Kd[GREEN] * Id[GREEN]) + (render->Ka[GREEN] * render->ambientlight.color[GREEN]);
-	(*color)[BLUE] = (render->Ks[BLUE] * Is[BLUE]) + (render->Kd[BLUE] * Id[BLUE]) + (render->Ka[BLUE] * render->ambientlight.color[BLUE]);
-
-
-	return GZ_SUCCESS;
-}
-
-
-
 void vectorAdd(GzCoord * u, GzCoord * v, GzCoord * out)
 {
 	(*out)[X] = (*v)[X] + (*u)[X];
@@ -1323,13 +1229,6 @@ void vectorSubtract(GzCoord * u, GzCoord * v, GzCoord * out)
 	(*out)[X] = (*u)[X] - (*v)[X];
 	(*out)[Y] = (*u)[Y] - (*v)[Y];
 	(*out)[Z] = (*u)[Z] - (*v)[Z];
-}
-
-void vectorProduct(GzCoord * u, GzCoord * v, GzCoord * out)
-{
-	(*out)[X] = (*v)[X] * (*u)[X];
-	(*out)[Y] = (*v)[Y] * (*u)[Y];
-	(*out)[Z] = (*v)[Z] * (*u)[Z];
 }
 
 void scaleVector(GzCoord * v, float scalar)
