@@ -51,8 +51,8 @@ int GzPutTriangle(GzRender *render, int	numParts, GzToken *nameList,
 // Helper Functions
 void sortTriangleVertices(float * values, int ** sortedIndices);
 int sign(float value);
-void getPlane(GzCoord * triangleVertices, float * A, float * B, float * C, float * D);
-float interpolateZ(float A, float B, float C, float D, float x, float y);
+void getTriangleInterpolator(GzCoord * triangleVertices, float * values, float * A, float * B, float * C, float * D);
+float interpolate(float A, float B, float C, float D, float x, float y);
 short ctoi(float color);
 
 // HW3
@@ -69,7 +69,14 @@ int GzScaleMat(GzCoord scale, GzMatrix mat);
 
 // HW4
 void calculateNormalMatrix(GzMatrix matrix, GzMatrix * normalMatrix);
-void getColor(GzRender * render, GzCoord normal, GzColor * color);
-void scalarProduct(GzCoord * v, float scalar);
+void getColor(GzRender * render, GzCoord * N, GzColor * color);
+int getcolor(GzRender *render, GzCoord * normal, GzColor * color);
+void vectorAdd(GzCoord * u, GzCoord * v, GzCoord * out);
+void vectorIncrease(GzCoord * u, GzCoord * v);
+void vectorSubtract(GzCoord * u, GzCoord * v, GzCoord * out);
+void vectorProduct(GzCoord * u, GzCoord * v, GzCoord * out);
+void scaleVector(GzCoord * v, float scalar);
+void scalarProduct(GzCoord * v, float scalar, GzCoord * out);
 void normalize(GzCoord * v);
-float dotProduct(GzCoord u, GzCoord v);
+float dotProduct(GzCoord * u, GzCoord * v);
+void colorMultiply(GzColor * u, GzColor * v, GzColor * out);
