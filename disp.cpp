@@ -67,9 +67,9 @@ int GzInitDisplay(GzDisplay	*display)
 			for (int j = 0; j < display->yres; j++) {
 				GzPixel * pixel = &display->fbuf[ARRAY(i, j)];
 				// arbitrary values chosen (this is going to be the background
-				pixel->red = 2000;
-				pixel->green = 2000;
-				pixel->blue = 2000;
+				pixel->red = 2048;
+				pixel->green = 1792;
+				pixel->blue = 1536;
 				pixel->alpha = 4095;
 				pixel->z = MAXINT;
 			}

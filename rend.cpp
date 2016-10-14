@@ -876,6 +876,7 @@ int GzPutTriangle(GzRender	*render, int numParts, GzToken *nameList, GzPointer	*
 		float blueA, blueB, blueC, blueD;
 		if (render->interp_mode == GZ_COLOR)
 		{
+			// Get color at each vertex
 			GzColor triangleVertexColors[VERTICES_PER_TRIANGLE];
 			for (int i = 0; i < VERTICES_PER_TRIANGLE; ++i)
 			{
@@ -885,7 +886,7 @@ int GzPutTriangle(GzRender	*render, int numParts, GzToken *nameList, GzPointer	*
 			float greenValues[3] = { triangleVertexColors[0][GREEN], triangleVertexColors[1][GREEN], triangleVertexColors[2][GREEN] };
 			float blueValues[3] = { triangleVertexColors[0][BLUE], triangleVertexColors[1][BLUE], triangleVertexColors[2][BLUE] };
 
-
+			// Get linear interpolator for vertex colors
 			getTriangleInterpolator(Vertices, redValues, &redA, &redB, &redC, &redD);
 			getTriangleInterpolator(Vertices, greenValues, &greenA, &greenB, &greenC, &greenD);
 			getTriangleInterpolator(Vertices, blueValues, &blueA, &blueB, &blueC, &blueD);
@@ -967,22 +968,25 @@ int GzPutTriangle(GzRender	*render, int numParts, GzToken *nameList, GzPointer	*
 						float yA, yB, yC, yD;
 						float zA, zB, zC, zD;
 						
+						// vertex normals to use for interpolator
 						float xNormals[3] = { Normals[0][X], Normals[1][X], Normals[2][X] };
 						float yNormals[3] = { Normals[0][Y], Normals[1][Y], Normals[2][Y] };
 						float zNormals[3] = { Normals[0][Z], Normals[1][Z], Normals[2][Z] };
 						
+						// get linear interpolator for normals
 						getTriangleInterpolator(Vertices, xNormals, &xA, &xB, &xC, &xD);
 						getTriangleInterpolator(Vertices, yNormals, &yA, &yB, &yC, &yD);
 						getTriangleInterpolator(Vertices, zNormals, &zA, &zB, &zC, &zD);
 						
+						// get interpolated normal
 						GzCoord pixelNormal;
 						pixelNormal[X] = interpolate(xA, xB, xC, xD, i, j);
 						pixelNormal[Y] = interpolate(yA, yB, yC, yD, i, j);
 						pixelNormal[Z] = interpolate(zA, zB, zC, zD, i, j);
 						normalize(&pixelNormal);
 
+						// get pixel color
 						getColor(render, &pixelNormal, &pixelColor);
-						float a = pixelColor[RED];
 					}
 
 					GzPutDisplay(render->display, i, j, ctoi(pixelColor[RED]), ctoi(pixelColor[GREEN]), ctoi(pixelColor[BLUE]), a, interpZ);
@@ -1117,9 +1121,9 @@ void calculateNormalMatrix(GzMatrix matrix, GzMatrix * normalMatrix)
 
 void getColor(GzRender * render, GzCoord * N, GzColor * color)
 {
+	// Color coefficients
 	GzColor Ka, Kd, Ks;
 	GzColor Is, Id, Ia;
-
 	Ka[RED] = render->Ka[RED];
 	Ka[GREEN] = render->Ka[GREEN];
 	Ka[BLUE] = render->Ka[BLUE];
@@ -1131,9 +1135,9 @@ void getColor(GzRender * render, GzCoord * N, GzColor * color)
 	Ks[BLUE] = render->Ks[BLUE];
 	float spec = render->spec;
 
+	// Lights
 	GzLight * directionalLights = render->lights;
 	GzLight ambientLight = render->ambientlight;
-	
 	Ia[RED] = ambientLight.color[RED];
 	Ia[GREEN] = ambientLight.color[GREEN];
 	Ia[BLUE] = ambientLight.color[BLUE];
@@ -1144,8 +1148,10 @@ void getColor(GzRender * render, GzCoord * N, GzColor * color)
 	Id[GREEN] = 0;
 	Id[BLUE] = 0;
 
+	// Eye vector (constant in camera space);
 	GzCoord E = { 0, 0, -1 };
 
+	// Iterate through all the lights
 	for (int i = 0; i < render->numlights; ++i)
 	{
 		// Get L
@@ -1183,14 +1189,16 @@ void getColor(GzRender * render, GzCoord * N, GzColor * color)
 
 		// Get Ie
 		GzColor Ie;
-		(Ie)[RED] = render->lights[i].color[RED];
-		(Ie)[GREEN] = render->lights[i].color[GREEN];
-		(Ie)[BLUE] = render->lights[i].color[BLUE];
+		Ie[RED] = render->lights[i].color[RED];
+		Ie[GREEN] = render->lights[i].color[GREEN];
+		Ie[BLUE] = render->lights[i].color[BLUE];
 
+		// Specular color
 		GzColor specComponent;
 		scalarProduct(&Ie, powf((RdotE), render->spec), &specComponent);
 		vectorIncrease(&Is, &specComponent);
 		
+		// Diffuse color
 		GzColor diffuseComponent;
 		scalarProduct(&Ie, (dotProduct(N, &L)), &diffuseComponent);
 		vectorIncrease(&Id, &diffuseComponent);
